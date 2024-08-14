@@ -8,13 +8,30 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
+type User struct {
+	Id      int    `json:"id"`
+	Name    string `json:"name"`
+	EmailId string `json:"emailId"`
+}
+
+func UserResponse(userModel models.User) User {
+	return User{Id: userModel.Id, Name: userModel.Name, EmailId: userModel.EmailId}
+}
+
 func ListOfUsers(c *fiber.Ctx) error {
-	var user []models.User
-	db.DB.Select("*").Find(&user)
+	var users []models.User
+	db.DB.Find(&users)
+
+	var responseUsers []User
+
+	for _, user := range users {
+		responseUser := UserResponse(user)
+		responseUsers = append(responseUsers, responseUser)
+	}
 
 	return c.Status(200).JSON(fiber.Map{
 		"status": true,
-		"data":   user,
+		"data":   responseUsers,
 	})
 }
 
@@ -23,15 +40,19 @@ func SingleUser(c *fiber.Ctx) error {
 	var user models.User
 
 	db.DB.Select("*").Find(&user, userId)
+	// Validation
+	if user.Id == 0 {
+		return c.Status(404).JSON(fiber.Map{
+			"status": false,
+			"msg":    "User not found",
+		})
+	}
 
-	userDetails := make(map[string]interface{})
-	userDetails["id"] = user.Id
-	userDetails["name"] = user.Name
-	userDetails["emailId"] = user.EmailId
+	userDetail := UserResponse(user)
 
 	return c.Status(200).JSON(fiber.Map{
 		"status": true,
-		"data":   userDetails,
+		"data":   userDetail,
 	})
 
 }
