@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"fmt"
 	"time"
 
 	db "example.com/go-crud/config"
@@ -18,7 +19,14 @@ func UserResponse(userModel models.User) User {
 	return User{Id: userModel.Id, Name: userModel.Name, EmailId: userModel.EmailId}
 }
 
-func ListOfUsers(c *fiber.Ctx) error {
+// List of controllers
+var ListOfUsers = listOfUsers
+var CreateUser = createUser
+var DeleteUser = removeUser
+var UpdateUser = updateUser
+var SingleUser = singleUser
+
+func listOfUsers(c *fiber.Ctx) error {
 	var users []models.User
 	db.DB.Find(&users)
 
@@ -35,7 +43,7 @@ func ListOfUsers(c *fiber.Ctx) error {
 	})
 }
 
-func SingleUser(c *fiber.Ctx) error {
+func singleUser(c *fiber.Ctx) error {
 	userId := c.Params("id")
 	var user models.User
 
@@ -58,7 +66,7 @@ func SingleUser(c *fiber.Ctx) error {
 }
 
 // =========> Update user
-func UpdateUser(c *fiber.Ctx) error {
+func updateUser(c *fiber.Ctx) error {
 	userId := c.Params("id")
 	var user models.User
 
@@ -98,7 +106,7 @@ func UpdateUser(c *fiber.Ctx) error {
 }
 
 // =========> Create user
-func CreateUser(c *fiber.Ctx) error {
+func createUser(c *fiber.Ctx) error {
 	var data map[string]string
 
 	if err := c.BodyParser(&data); err != nil {
@@ -115,23 +123,46 @@ func CreateUser(c *fiber.Ctx) error {
 		})
 	}
 
+	// Check if email already exists
+	var emailExists bool
+	result := db.DB.Model(&models.User{}).Select("count(*) > 0").Where("email_id = ?", data["emailId"]).Find(&emailExists)
+	if result.Error != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"status":  false,
+			"message": "Error checking email",
+		})
+	}
+	fmt.Println(emailExists, result)
+	if emailExists {
+		return c.Status(400).JSON(fiber.Map{
+			"status":  false,
+			"message": "Email already exists",
+		})
+	}
+
 	// Add user to the db
 	user := models.User{
 		Name:      data["name"],
 		EmailId:   data["emailId"],
-		CreatedAt: time.Time{},
-		UpdatedAt: time.Time{}}
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
 
-	db.DB.Create(&user)
+	if err := db.DB.Create(&user).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"status":  false,
+			"message": "Failed to create user",
+		})
+	}
+
 	return c.Status(200).JSON(fiber.Map{
 		"status":  true,
-		"message": "User added successfully..!",
-		"data":    data,
+		"message": "User added successfully!",
+		"data":    user,
 	})
-
 }
 
-func RemoveUser(c *fiber.Ctx) error {
+func removeUser(c *fiber.Ctx) error {
 	id := c.Params("id")
 	var user models.User
 
